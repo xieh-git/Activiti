@@ -443,4 +443,17 @@ public class SubProcessTest extends PluggableActivitiTestCase {
     taskService.complete(currentTask.getId());
     assertThat(runtimeService.createProcessInstanceQuery().processInstanceId(pi.getId()).singleResult()).isNull();
   }
+
+  @Deployment
+  public void testLocalVariablesAreAvailableAfterSubProcess() {
+      // GIVEN a process that creates a local variable, calls a subprocess and evaluates the initial local variable
+
+      // WHEN process starts
+      runtimeService.startProcessInstanceByKey("simplerProcess");
+
+      // THEN after completing the subprocess, evaluation of the local variable is possible and flow reaches a user task
+      TaskQuery taskQuery = taskService.createTaskQuery();
+      Task taskBeforeSubProcess = taskQuery.singleResult();
+      assertThat(taskBeforeSubProcess.getName()).isEqualTo("user task");
+  }
 }

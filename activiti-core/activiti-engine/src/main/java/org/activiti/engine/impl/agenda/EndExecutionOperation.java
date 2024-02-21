@@ -30,6 +30,7 @@ import org.activiti.engine.delegate.event.ActivitiEventType;
 import org.activiti.engine.delegate.event.impl.ActivitiEventBuilder;
 import org.activiti.engine.impl.bpmn.behavior.MultiInstanceActivityBehavior;
 import org.activiti.engine.impl.bpmn.helper.ScopeUtil;
+import org.activiti.engine.impl.bpmn.helper.SubProcessVariableSnapshotter;
 import org.activiti.engine.impl.context.Context;
 import org.activiti.engine.impl.delegate.ActivityBehavior;
 import org.activiti.engine.impl.delegate.SubProcessActivityBehavior;
@@ -44,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * This operations ends an execution and follows the typical BPMN rules to continue the process (if possible).
@@ -228,6 +230,21 @@ public class EndExecutionOperation extends AbstractOperation {
         // create a new execution to take the outgoing sequence flows
         executionToContinue = executionEntityManager.createChildExecution(parentExecution.getParent());
         executionToContinue.setCurrentFlowElement(subProcess);
+
+        // if there's a parent process running (given by parentExecution.getParent()),
+        // copies local variables from the execution before subprocess
+
+        // since parent process execution before calling the subprocess is marked for deletion,
+        // {@code executionEntityManager.findChildExecutionsByParentExecutionId()} will not return that execution
+        Optional<? extends ExecutionEntity> first = parentExecution.getParent().getExecutions().stream()
+            .filter(executionEntity -> {
+                // scoped execution of the current subprocess should not be considered
+                return !executionEntity.getId().equals(parentExecution.getId());
+            } )
+            .findFirst();
+        if( first.isPresent() ) {
+            new SubProcessVariableSnapshotter().setVariablesSnapshots(first.get(), executionToContinue);
+        }
 
         boolean hasCompensation = false;
         if (subProcess instanceof Transaction) {
